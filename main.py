@@ -1,5 +1,6 @@
  #https://en.wikipedia.org/wiki/CHIP-8
 from typing import List, NewType
+import random
 import math
 
 byte = NewType("byte", int)
@@ -21,6 +22,12 @@ class Machine:
         for i, b in enumerate(bytes_read):
             self.memory[i+0x200] = b    
         self.program_counter=0x200
+
+    def __str__(self):
+        line = f"program_counter = {self.program_counter}\r\n"
+        line = line + f"I = {self.I}\r\n"
+        line = line + f"registers = {self.registers}\r\n"
+        return line
 
 class OpCode():
     """
@@ -57,37 +64,55 @@ def step(machine: Machine):
     opCode = OpCode(machine.memory, machine.program_counter)
     print(f"{machine.program_counter}:: Running {opCode}")
 
-    if opCode.n0 == 0x0 and opCode.lsb == 0xEE:
+    if opCode.n0 == 0x0 and opCode.lsb == 0xE0:
+        machine.display = [[False] * 64] * 32
+        print(f"Clear screen")
+
+    elif opCode.n0 == 0x0 and opCode.lsb == 0xEE:
         # 00EE #1002:: Running 0x0-0xee
         machine.program_counter = machine.stack.pop()
-        print(f"Return")
+        print(f"Return to {machine.program_counter}")
 
     elif opCode.n0 == 0x1:
         # 1NNN	Flow	goto NNN;	Jumps to address NNN.        
         machine.program_counter = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
-        print(f"Goto")
+        print(f"Goto {machine.program_counter }")
 
     elif opCode.n0 == 0x2:
         #2NNN	Flow	*(0xNNN)()	Calls subroutine at NNN.
         machine.stack.append(machine.program_counter + 2)   # Not sure if we should implement PC here on the return.
         machine.program_counter = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
-        print(f"Jumping")
+        print(f"Jumping to {machine.program_counter}")
 
     elif opCode.n0 == 0x3:
         # 3XNN	Cond	if(Vx==NN)	Skips the next instruction if VX equals NN. (Usually the next instruction is a jump to skip a code block);
+        print(f"jump if {machine.registers[opCode.n1]} == {opCode.lsb}")
         if machine.registers[opCode.n1] == opCode.lsb:
+            machine.program_counter = machine.program_counter + 4
+        else:
+            machine.program_counter = machine.program_counter + 2
+
+    elif opCode.n0 == 0x4:
+        if machine.registers[opCode.n1] != opCode.lsb:
+            machine.program_counter = machine.program_counter + 4
+        else:
+            machine.program_counter = machine.program_counter + 2
+
+    elif opCode.n0 == 0x5:
+        if machine.registers[opCode.n1] == machine.registers[opCode.n2]:
             machine.program_counter = machine.program_counter + 4
         else:
             machine.program_counter = machine.program_counter + 2
 
     elif opCode.n0 == 0x6:
         # Vx = N
+        print(f"Set V[{hex(opCode.n1)}] to {opCode.lsb}")
         machine.registers[opCode.n1] = opCode.lsb
         machine.program_counter = machine.program_counter + 2
 
     elif opCode.n0 == 0x7:
         # Vx += N
-        machine.registers[opCode.n1] = machine.registers[opCode.n1] + opCode.lsb #overflow?
+        machine.registers[opCode.n1] = (machine.registers[opCode.n1] + opCode.lsb) % 0x100
         machine.program_counter = machine.program_counter + 2
 
     elif opCode.n0 == 0x8:
@@ -96,36 +121,43 @@ def step(machine: Machine):
             machine.registers[opCode.n1] = machine.registers[opCode.n2]
             machine.program_counter = machine.program_counter + 2
 
-        if opCode.n3 == 0x1:
+        elif opCode.n3 == 0x1:
             # Bitwise or  (Vx=Vx|Vy)
             machine.registers[opCode.n1] = machine.registers[opCode.n1] | machine.registers[opCode.n2]
             machine.program_counter = machine.program_counter + 2
 
-        if opCode.n3 == 0x2:
+        elif opCode.n3 == 0x2:
             # Bitwise and  (Vx=Vx&Vy)
             machine.registers[opCode.n1] = machine.registers[opCode.n1] & machine.registers[opCode.n2]
             machine.program_counter = machine.program_counter + 2
 
-        if opCode.n3 == 0x3:
+        elif opCode.n3 == 0x3:
             # Vx=Vx^Vy	Sets VX to VX xor VY.
             machine.registers[opCode.n1] = machine.registers[opCode.n1] ^ machine.registers[opCode.n2]
             machine.program_counter = machine.program_counter + 2
 
-        if opCode.n3 == 0x4:
+        elif opCode.n3 == 0x4:
             # Vx += V	Adds VY to VX. VF is set to 1 when there's a carry, and to 0 when there is not.
             machine.registers[opCode.n1] = machine.registers[opCode.n1] + machine.registers[opCode.n2]
             machine.registers[0xF] = 1 if machine.registers[opCode.n1] > 0xFF else 0
+            machine.registers[opCode.n1] = machine.registers[opCode.n1] % 0x100
             machine.program_counter = machine.program_counter + 2
 
-        if opCode.n3 == 0x5:
+        elif opCode.n3 == 0x5:
             # Vx -= V
             machine.registers[opCode.n1] = machine.registers[opCode.n1] - machine.registers[opCode.n2]
             machine.registers[0xF] = 1 if machine.registers[opCode.n1] < 0x0 else 0
             machine.program_counter = machine.program_counter + 2
+        else:
+            raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
 
     elif opCode.n0 == 0xA:
         #ANNN	MEM	I = NN	Sets I to the address NNN.
         machine.I = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
+        machine.program_counter = machine.program_counter + 2
+
+    elif opCode.n0 == 0xC:
+        machine.registers[opCode.n1] =  random.randint(0,255) & opCode.lsb
         machine.program_counter = machine.program_counter + 2
 
     elif opCode.n0 == 0xD:
@@ -154,7 +186,16 @@ def step(machine: Machine):
         machine.program_counter = machine.program_counter + 2
         display_screen(machine)
 
+    elif opCode.n0 == 0xF and opCode.lsb == 0x1E:
+        machine.I = (machine.I + machine.registers[opCode.n1]) % 0x10000
+        machine.program_counter = machine.program_counter + 2
 
+    elif opCode.n0 == 0xF and opCode.lsb == 0x55:
+        X = opCode.n1
+        for i in range(X+1):
+            machine.memory[machine.I + i] = machine.registers[i]
+        machine.program_counter = machine.program_counter + 2
+        
     else:
         raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
         
@@ -164,3 +205,4 @@ machine.load_rom("c8games/TETRIS")
 
 while True:
     step(machine)
+    print(machine)
