@@ -2,6 +2,8 @@
 from typing import List, NewType
 import random
 import math
+import keyboard
+from datetime import datetime
 
 byte = NewType("byte", int)
 address = byte
@@ -13,6 +15,20 @@ class Machine:
     I : int = 0         #16 bits
     stack : List[int] = []
     display = [[False] * 64] * 32   # array of 32 rows
+
+    def reset_delay_timer(self, duration):
+        self.delay_timer_duration = duration
+        self.delay_timer_started_at = datetime.now()
+
+    def current_delay_timer_duration(self):
+        elapsed = datetime.now() - self.delay_timer_started_at
+        one_hertz_in_ms = 1000 / 60
+        elapsed_ms = elapsed.microseconds / 1000
+        elapsed_hertz = elapsed_ms / one_hertz_in_ms
+        if elapsed_hertz > self.delay_timer_duration:
+            return 0
+        else:
+            return elapsed_hertz
 
     def load_rom(self, filename: str):
         with open(filename, "rb") as f:
@@ -60,33 +76,36 @@ def display_screen(machine: Machine):
         print(line)
     print('=' * 64)
 
+def debug_print(msg):
+    pass
+
 def step(machine: Machine):
     opCode = OpCode(machine.memory, machine.program_counter)
-    print(f"{machine.program_counter}:: Running {opCode}")
+    debug_print(f"{machine.program_counter}:: Running {opCode}")
 
     if opCode.n0 == 0x0 and opCode.lsb == 0xE0:
         machine.display = [[False] * 64] * 32
-        print(f"Clear screen")
+        debug_print(f"Clear screen")
 
     elif opCode.n0 == 0x0 and opCode.lsb == 0xEE:
         # 00EE #1002:: Running 0x0-0xee
         machine.program_counter = machine.stack.pop()
-        print(f"Return to {machine.program_counter}")
+        debug_print(f"Return to {machine.program_counter}")
 
     elif opCode.n0 == 0x1:
         # 1NNN	Flow	goto NNN;	Jumps to address NNN.        
         machine.program_counter = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
-        print(f"Goto {machine.program_counter }")
+        debug_print(f"Goto {machine.program_counter }")
 
     elif opCode.n0 == 0x2:
         #2NNN	Flow	*(0xNNN)()	Calls subroutine at NNN.
         machine.stack.append(machine.program_counter + 2)   # Not sure if we should implement PC here on the return.
         machine.program_counter = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
-        print(f"Jumping to {machine.program_counter}")
+        debug_print(f"Jumping to {machine.program_counter}")
 
     elif opCode.n0 == 0x3:
         # 3XNN	Cond	if(Vx==NN)	Skips the next instruction if VX equals NN. (Usually the next instruction is a jump to skip a code block);
-        print(f"jump if {machine.registers[opCode.n1]} == {opCode.lsb}")
+        debug_print(f"jump if {machine.registers[opCode.n1]} == {opCode.lsb}")
         if machine.registers[opCode.n1] == opCode.lsb:
             machine.program_counter = machine.program_counter + 4
         else:
@@ -106,7 +125,7 @@ def step(machine: Machine):
 
     elif opCode.n0 == 0x6:
         # Vx = N
-        print(f"Set V[{hex(opCode.n1)}] to {opCode.lsb}")
+        debug_print(f"Set V[{hex(opCode.n1)}] to {opCode.lsb}")
         machine.registers[opCode.n1] = opCode.lsb
         machine.program_counter = machine.program_counter + 2
 
@@ -171,20 +190,50 @@ def step(machine: Machine):
         N = opCode.n3
 
         machine.registers[0xF] = 0
-        offset = machine.I
+        masks = [0b10000000,0b01000000,0b00100000,0b00010000,
+                 0b00001000,0b00000100,0b00000010,0b00000001]
         for row in range(0, N+1):
+            bit_map = machine.memory[machine.I + row]
+
             for column in range(0,8):
+                mask = masks[column]
+                bit = (mask & bit_map) == mask
                 current = machine.display[row + Y][column + X]
-                new = current ^ machine.memory[offset]
+                new = current ^ bit
 
                 if current == 1 and new == 0:
                     # At least one pixel is being flipped from 1 to 0
                     machine.registers[0xF] = 1
 
                 machine.display[row + Y][column + X] = new
-                offset = offset + 1
+
         machine.program_counter = machine.program_counter + 2
         display_screen(machine)
+
+    elif opCode.n0 == 0xE and opCode.lsb == 0x9E:
+        key = machine.registers[opCode.n1]
+        if keyboard.is_pressed(str(hex(key)[2:])):
+            machine.program_counter = machine.program_counter + 4
+        else:
+            machine.program_counter = machine.program_counter + 2
+
+    elif opCode.n0 == 0xE and opCode.lsb == 0xA1:
+        key = machine.registers[opCode.n1]
+        if not keyboard.is_pressed(str(hex(key)[2:])):
+            machine.program_counter = machine.program_counter + 4
+        else:
+            machine.program_counter = machine.program_counter + 2
+
+    elif opCode.n0 == 0xF and opCode.lsb == 0x07:
+        machine.registers[opCode.n1] = machine.current_delay_timer_duration()
+        machine.program_counter = machine.program_counter + 2
+
+
+    elif opCode.n0 == 0xF and opCode.lsb == 0x15:
+        duration = machine.registers[opCode.n1]
+        machine.reset_delay_timer(duration)
+        machine.program_counter = machine.program_counter + 2
+
 
     elif opCode.n0 == 0xF and opCode.lsb == 0x1E:
         machine.I = (machine.I + machine.registers[opCode.n1]) % 0x10000
@@ -195,7 +244,8 @@ def step(machine: Machine):
         for i in range(X+1):
             machine.memory[machine.I + i] = machine.registers[i]
         machine.program_counter = machine.program_counter + 2
-        
+
+
     else:
         raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
         
@@ -205,4 +255,4 @@ machine.load_rom("c8games/TETRIS")
 
 while True:
     step(machine)
-    print(machine)
+    debug_print(machine)
