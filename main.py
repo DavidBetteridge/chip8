@@ -1,10 +1,11 @@
  #https://en.wikipedia.org/wiki/CHIP-8
  #http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#font
-from re import M
+import sys
 from typing import List, NewType
 import random
 import math
 import keyboard
+import pygame
 from datetime import datetime
 
 byte = NewType("byte", int)
@@ -16,7 +17,6 @@ class Machine:
     registers: List[byte] = [0] * 0x10
     I : int = 0         #16 bits
     stack : List[int] = []
-    #display = [[False] * 64] * 32   # array of 32 rows
     display = [[False]*64 for _ in range(32)]   # array of 32 rows
 
     def reset_delay_timer(self, duration):
@@ -104,7 +104,7 @@ def font_address(character: int) -> int:
     return character * 5
 
 
-def step(machine: Machine):
+def step(machine: Machine, draw_screen_callback):
     opCode = OpCode(machine.memory, machine.program_counter)
     debug_print(f"{machine.program_counter}:: Running {opCode}")
 
@@ -244,17 +244,16 @@ def step(machine: Machine):
             for column in range(0,8):
                 mask = masks[column]
                 bit = (mask & bit_map) == mask
-                current = machine.display[row + vY][column + vX]
+                current = machine.display[(row + vY) % 32][(column + vX) % 64]
                 new_value = current ^ bit
 
                 if current and not new_value:
                     # At least one pixel is being flipped from 1 to 0
                     machine.registers[0xF] = 1
 
-                machine.display[row + vY][column + vX] = new_value
-
+                machine.display[(row + vY) % 32][(column + vX) % 64] = new_value
+        draw_screen_callback(machine)
         machine.program_counter = machine.program_counter + 2
-        display_screen(machine)
 
     elif opCode.n0 == 0xE and opCode.lsb == 0x9E:
         key = machine.registers[opCode.n1]
@@ -316,10 +315,40 @@ def step(machine: Machine):
         raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
         
 
+
+
+
 machine = Machine()
 machine.load_rom("c8games/TETRIS")
 load_fonts(machine)
 
-while True:
-    step(machine)
-    debug_print(machine)
+pygame.init()
+CELLSIZE = 10
+size = (64 * CELLSIZE), (32 * CELLSIZE)
+screen = pygame.display.set_mode(size)
+
+next_move_event = pygame.USEREVENT + 1
+pygame.time.set_timer(next_move_event, 1)
+
+
+def draw_screen(machine: Machine):
+    black = pygame.Color(0,0,0)  
+    white = pygame.Color(255,255,255)  
+
+    for row in range(32):
+        for column in range(64):
+            if machine.display[row][column]:
+                pygame.draw.rect(screen, white, (column*CELLSIZE,row*CELLSIZE,CELLSIZE,CELLSIZE))
+            else:
+                pygame.draw.rect(screen, black, (column*CELLSIZE,row*CELLSIZE,CELLSIZE,CELLSIZE))
+    pygame.display.update()
+
+
+while (True):
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            sys.exit()
+        
+        elif event.type == next_move_event:
+            step(machine, draw_screen)    
