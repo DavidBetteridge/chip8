@@ -1,4 +1,5 @@
  #https://en.wikipedia.org/wiki/CHIP-8
+ #http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#font
 from typing import List, NewType
 import random
 import math
@@ -78,6 +79,28 @@ def display_screen(machine: Machine):
 
 def debug_print(msg):
     pass
+
+def load_fonts(machine: Machine):
+    #0
+    machine.memory[0] = 0x11110000
+    machine.memory[1] = 0x10010000
+    machine.memory[2] = 0x10010000
+    machine.memory[3] = 0x10010000
+    machine.memory[4] = 0x11110000
+
+    #1
+    machine.memory[5] = 0x00100000
+    machine.memory[6] = 0x01100000
+    machine.memory[7] = 0x00100000
+    machine.memory[8] = 0x00100000
+    machine.memory[9] = 0x01110000
+
+    #TODO:
+
+def font_address(character: int) -> int:
+    # Each font takes 5 bytes (memory locations)
+    return character * 5
+
 
 def step(machine: Machine):
     opCode = OpCode(machine.memory, machine.program_counter)
@@ -170,6 +193,14 @@ def step(machine: Machine):
         else:
             raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
 
+    elif opCode.n0 == 0x9 and opCode.n3 == 0x0:
+        vx = machine.registers[opCode.n1]
+        vy = machine.registers[opCode.n2]
+        if vx != vy:
+            machine.program_counter = machine.program_counter + 4
+        else:
+            machine.program_counter = machine.program_counter + 2
+
     elif opCode.n0 == 0xA:
         #ANNN	MEM	I = NN	Sets I to the address NNN.
         machine.I = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
@@ -234,9 +265,21 @@ def step(machine: Machine):
         machine.reset_delay_timer(duration)
         machine.program_counter = machine.program_counter + 2
 
-
     elif opCode.n0 == 0xF and opCode.lsb == 0x1E:
         machine.I = (machine.I + machine.registers[opCode.n1]) % 0x10000
+        machine.program_counter = machine.program_counter + 2
+
+    elif opCode.n0 == 0xF and opCode.lsb == 0x29:
+        character = machine.registers[opCode.n1]
+        machine.I = font_address(character)
+        machine.program_counter = machine.program_counter + 2
+
+
+    elif opCode.n0 == 0xF and opCode.lsb == 0x33:
+        vx = machine.registers[opCode.n1]
+        machine.memory[machine.I] = math.floor(vx / 100)
+        machine.memory[machine.I+1] = math.floor((vx % 100) / 10)
+        machine.memory[machine.I+2] = vx % 10
         machine.program_counter = machine.program_counter + 2
 
     elif opCode.n0 == 0xF and opCode.lsb == 0x55:
@@ -245,6 +288,11 @@ def step(machine: Machine):
             machine.memory[machine.I + i] = machine.registers[i]
         machine.program_counter = machine.program_counter + 2
 
+    elif opCode.n0 == 0xF and opCode.lsb == 0x65:
+        X = opCode.n1
+        for i in range(X+1):
+            machine.registers[i] = machine.memory[machine.I + i]
+        machine.program_counter = machine.program_counter + 2
 
     else:
         raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
@@ -252,6 +300,7 @@ def step(machine: Machine):
 
 machine = Machine()
 machine.load_rom("c8games/TETRIS")
+load_fonts(machine)
 
 while True:
     step(machine)
