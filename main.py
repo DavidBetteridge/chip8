@@ -273,7 +273,15 @@ def step(machine: Machine, draw_screen_callback):
         machine.registers[opCode.n1] = machine.current_delay_timer_duration()
         machine.program_counter = machine.program_counter + 2
 
-    #FX0A
+    elif opCode.n0 == 0xF and opCode.lsb == 0x0A:
+        for key in range(0x10):
+            if keyboard.is_pressed(str(hex(key)[2:])):
+                machine.registers[opCode.n1] = key
+                machine.program_counter = machine.program_counter + 2
+                return
+        # This meant to be blocking,  but we don't want to lock
+        # up the UI. So instead we just exit without advancing the PC
+        # so we get called again and again until we detect a key press                
 
     elif opCode.n0 == 0xF and opCode.lsb == 0x15:
         duration = machine.registers[opCode.n1]
@@ -319,7 +327,7 @@ def step(machine: Machine, draw_screen_callback):
 
 
 machine = Machine()
-machine.load_rom("c8games/TETRIS")
+machine.load_rom("c8games/INVADERS")
 load_fonts(machine)
 
 pygame.init()
