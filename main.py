@@ -1,5 +1,6 @@
  #https://en.wikipedia.org/wiki/CHIP-8
  #http://devernay.free.fr/hacks/chip8/C8TECH10.HTM#font
+from re import M
 from typing import List, NewType
 import random
 import math
@@ -15,7 +16,8 @@ class Machine:
     registers: List[byte] = [0] * 0x10
     I : int = 0         #16 bits
     stack : List[int] = []
-    display = [[False] * 64] * 32   # array of 32 rows
+    #display = [[False] * 64] * 32   # array of 32 rows
+    display = [[False]*64 for _ in range(32)]   # array of 32 rows
 
     def reset_delay_timer(self, duration):
         self.delay_timer_duration = duration
@@ -106,6 +108,8 @@ def step(machine: Machine):
     opCode = OpCode(machine.memory, machine.program_counter)
     debug_print(f"{machine.program_counter}:: Running {opCode}")
 
+    #0nnn
+
     if opCode.n0 == 0x0 and opCode.lsb == 0xE0:
         machine.display = [[False] * 64] * 32
         debug_print(f"Clear screen")
@@ -190,6 +194,11 @@ def step(machine: Machine):
             machine.registers[opCode.n1] = machine.registers[opCode.n1] - machine.registers[opCode.n2]
             machine.registers[0xF] = 1 if machine.registers[opCode.n1] < 0x0 else 0
             machine.program_counter = machine.program_counter + 2
+
+        #8xy6
+        #8xy7
+        #8xye
+
         else:
             raise ValueError(f"Unknown opcode {hex(opCode.msb)}-{hex(opCode.lsb)}")
 
@@ -206,6 +215,12 @@ def step(machine: Machine):
         machine.I = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
         machine.program_counter = machine.program_counter + 2
 
+    elif opCode.n0 == 0xB:
+        #Jumps to the address NNN plus V0.
+        v0 = machine.registers[0x0]
+        address = (opCode.n1 * 256) + (opCode.n2 * 16) + opCode.n3
+        machine.program_counter = address + v0
+
     elif opCode.n0 == 0xC:
         machine.registers[opCode.n1] =  random.randint(0,255) & opCode.lsb
         machine.program_counter = machine.program_counter + 2
@@ -216,27 +231,27 @@ def step(machine: Machine):
         # Each row of 8 pixels is read as bit-coded starting from memory location I; I value does not
         # change after the execution of this instruction. As described above, VF is set to 1 if any screen pixels
         #  are flipped from set to unset when the sprite is drawn, and to 0 if that does not happen
-        X = opCode.n1
-        Y = opCode.n2
+        vX = machine.registers[opCode.n1]
+        vY = machine.registers[opCode.n2]
         N = opCode.n3
 
         machine.registers[0xF] = 0
         masks = [0b10000000,0b01000000,0b00100000,0b00010000,
                  0b00001000,0b00000100,0b00000010,0b00000001]
-        for row in range(0, N+1):
+        for row in range(0, N):
             bit_map = machine.memory[machine.I + row]
 
             for column in range(0,8):
                 mask = masks[column]
                 bit = (mask & bit_map) == mask
-                current = machine.display[row + Y][column + X]
-                new = current ^ bit
+                current = machine.display[row + vY][column + vX]
+                new_value = current ^ bit
 
-                if current == 1 and new == 0:
+                if current and not new_value:
                     # At least one pixel is being flipped from 1 to 0
                     machine.registers[0xF] = 1
 
-                machine.display[row + Y][column + X] = new
+                machine.display[row + vY][column + vX] = new_value
 
         machine.program_counter = machine.program_counter + 2
         display_screen(machine)
@@ -259,11 +274,14 @@ def step(machine: Machine):
         machine.registers[opCode.n1] = machine.current_delay_timer_duration()
         machine.program_counter = machine.program_counter + 2
 
+    #FX0A
 
     elif opCode.n0 == 0xF and opCode.lsb == 0x15:
         duration = machine.registers[opCode.n1]
         machine.reset_delay_timer(duration)
         machine.program_counter = machine.program_counter + 2
+
+    #FX18
 
     elif opCode.n0 == 0xF and opCode.lsb == 0x1E:
         machine.I = (machine.I + machine.registers[opCode.n1]) % 0x10000
