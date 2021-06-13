@@ -198,7 +198,12 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed):
             machine.registers[0xF] = 1 if machine.registers[opCode.n1] < 0x0 else 0
             machine.program_counter = machine.program_counter + 2
 
-        #8xy6
+        elif opCode.n3 == 0x6:
+            # Vx>>=1
+            machine.registers[0xF] = machine.registers[opCode.n1] & 0b00000001
+            machine.registers[opCode.n1] = machine.registers[opCode.n1] >> 1
+            machine.program_counter = machine.program_counter + 2
+
         #8xy7
         #8xye
 
