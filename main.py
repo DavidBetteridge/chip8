@@ -4,9 +4,11 @@ import sys
 from typing import List, NewType
 import random
 import math
-import keyboard
 import pygame
 from datetime import datetime
+
+from pygame.constants import( K_0, K_1, K_2, K_3, K_4, K_5, K_6, K_7, K_8, K_9, K_a, K_b, K_c, K_d, K_e, K_f,
+                              K_KP0, K_KP1, K_KP2, K_KP3, K_KP4, K_KP5, K_KP6, K_KP7, K_KP8, K_KP9)
 
 byte = NewType("byte", int)
 address = byte
@@ -104,7 +106,7 @@ def font_address(character: int) -> int:
     return character * 5
 
 
-def step(machine: Machine, draw_screen_callback):
+def step(machine: Machine, draw_screen_callback, is_key_pressed):
     opCode = OpCode(machine.memory, machine.program_counter)
     debug_print(f"{machine.program_counter}:: Running {opCode}")
 
@@ -257,14 +259,14 @@ def step(machine: Machine, draw_screen_callback):
 
     elif opCode.n0 == 0xE and opCode.lsb == 0x9E:
         key = machine.registers[opCode.n1]
-        if keyboard.is_pressed(str(hex(key)[2:])):
+        if is_key_pressed(key):
             machine.program_counter = machine.program_counter + 4
         else:
             machine.program_counter = machine.program_counter + 2
 
     elif opCode.n0 == 0xE and opCode.lsb == 0xA1:
         key = machine.registers[opCode.n1]
-        if not keyboard.is_pressed(str(hex(key)[2:])):
+        if not is_key_pressed(key):
             machine.program_counter = machine.program_counter + 4
         else:
             machine.program_counter = machine.program_counter + 2
@@ -275,7 +277,7 @@ def step(machine: Machine, draw_screen_callback):
 
     elif opCode.n0 == 0xF and opCode.lsb == 0x0A:
         for key in range(0x10):
-            if keyboard.is_pressed(str(hex(key)[2:])):
+            if is_key_pressed(key):
                 machine.registers[opCode.n1] = key
                 machine.program_counter = machine.program_counter + 2
                 return
@@ -327,7 +329,7 @@ def step(machine: Machine, draw_screen_callback):
 
 
 machine = Machine()
-machine.load_rom("c8games/INVADERS")
+machine.load_rom("c8games/TETRIS")
 load_fonts(machine)
 
 pygame.init()
@@ -338,6 +340,31 @@ screen = pygame.display.set_mode(size)
 next_move_event = pygame.USEREVENT + 1
 pygame.time.set_timer(next_move_event, 1)
 
+def is_key_pressed(key_code: int) -> bool:
+    """
+        key_code is 0-15  (0x0->0xF)
+    """
+    key = str(hex(key_code)[2:])
+
+    pressed_keys = pygame.key.get_pressed()
+    if key == "0": return pressed_keys[K_0] == 1 or pressed_keys[K_KP0] == 1
+    if key == "1": return pressed_keys[K_1] == 1 or pressed_keys[K_KP1] == 1
+    if key == "2": return pressed_keys[K_2] == 1 or pressed_keys[K_KP2] == 1
+    if key == "3": return pressed_keys[K_3] == 1 or pressed_keys[K_KP3] == 1
+    if key == "4": return pressed_keys[K_4] == 1 or pressed_keys[K_KP4] == 1
+    if key == "5": return pressed_keys[K_5] == 1 or pressed_keys[K_KP5] == 1
+    if key == "6": return pressed_keys[K_6] == 1 or pressed_keys[K_KP6] == 1
+    if key == "7": return pressed_keys[K_7] == 1 or pressed_keys[K_KP7] == 1
+    if key == "8": return pressed_keys[K_8] == 1 or pressed_keys[K_KP8] == 1
+    if key == "9": return pressed_keys[K_9] == 1 or pressed_keys[K_KP9] == 1
+    if key == "A": return pressed_keys[K_a] == 1 
+    if key == "B": return pressed_keys[K_b] == 1
+    if key == "C": return pressed_keys[K_c] == 1
+    if key == "D": return pressed_keys[K_d] == 1
+    if key == "E": return pressed_keys[K_e] == 1
+    if key == "F": return pressed_keys[K_f] == 1
+    
+    raise ValueError(f"Unexpected key {key}")
 
 def draw_screen(machine: Machine):
     black = pygame.Color(0,0,0)  
@@ -359,4 +386,4 @@ while (True):
             sys.exit()
         
         elif event.type == next_move_event:
-            step(machine, draw_screen)    
+            step(machine, draw_screen, is_key_pressed)    
