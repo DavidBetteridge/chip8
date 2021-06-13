@@ -113,7 +113,8 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed):
     #0nnn
 
     if opCode.n0 == 0x0 and opCode.lsb == 0xE0:
-        machine.display = [[False] * 64] * 32
+        machine.display = [[False]*64 for _ in range(32)]
+        machine.program_counter = machine.program_counter + 2
         debug_print(f"Clear screen")
 
     elif opCode.n0 == 0x0 and opCode.lsb == 0xEE:
@@ -329,7 +330,7 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed):
 
 
 machine = Machine()
-machine.load_rom("c8games/TETRIS")
+machine.load_rom("c8games/INVADERS")
 load_fonts(machine)
 
 pygame.init()
