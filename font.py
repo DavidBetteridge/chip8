@@ -56,3 +56,59 @@ def load_fonts(memory: List[int]):
     memory[digit + 2] = 0b00100000
     memory[digit + 3] = 0b01000000
     memory[digit + 4] = 0b01000000
+
+    digit = 0x8
+    memory[digit + 0] = 0b11110000
+    memory[digit + 1] = 0b10010000
+    memory[digit + 2] = 0b11110000
+    memory[digit + 3] = 0b10010000
+    memory[digit + 4] = 0b11110000
+
+    digit = 0x9
+    memory[digit + 0] = 0b11110000
+    memory[digit + 1] = 0b10010000
+    memory[digit + 2] = 0b11110000
+    memory[digit + 3] = 0b00010000
+    memory[digit + 4] = 0b11110000
+
+    digit = 0xA
+    memory[digit + 0] = 0b11110000
+    memory[digit + 1] = 0b10010000
+    memory[digit + 2] = 0b11110000
+    memory[digit + 3] = 0b10010000
+    memory[digit + 4] = 0b10010000
+
+    digit = 0xB
+    memory[digit + 0] = 0b11100000
+    memory[digit + 1] = 0b10010000
+    memory[digit + 2] = 0b11100000
+    memory[digit + 3] = 0b10010000
+    memory[digit + 4] = 0b11100000
+
+    digit = 0xC
+    memory[digit + 0] = 0b11110000
+    memory[digit + 1] = 0b10000000
+    memory[digit + 2] = 0b10000000
+    memory[digit + 3] = 0b10000000
+    memory[digit + 4] = 0b11110000
+
+    digit = 0xD
+    memory[digit + 0] = 0b11100000
+    memory[digit + 1] = 0b10010000
+    memory[digit + 2] = 0b10010000
+    memory[digit + 3] = 0b10010000
+    memory[digit + 4] = 0b11100000
+
+    digit = 0xE
+    memory[digit + 0] = 0b11110000
+    memory[digit + 1] = 0b10000000
+    memory[digit + 2] = 0b11110000
+    memory[digit + 3] = 0b10000000
+    memory[digit + 4] = 0b11110000
+
+    digit = 0xF
+    memory[digit + 0] = 0b11110000
+    memory[digit + 1] = 0b10000000
+    memory[digit + 2] = 0b11110000
+    memory[digit + 3] = 0b10000000
+    memory[digit + 4] = 0b10000000

@@ -369,7 +369,7 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed, beep):
 
 
 machine = Machine()
-machine.load_rom("c8games/TETRIS")
+machine.load_rom("c8games/INVADERS")
 load_fonts(machine.memory)
 
 pygame.init()
