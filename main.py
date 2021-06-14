@@ -7,6 +7,7 @@ import math
 import pygame
 import winsound
 from datetime import datetime
+from font import load_fonts
 
 from pygame.constants import(K_0, K_1, K_2, K_3, K_4, K_5, K_6, K_7, K_8, K_9,
                              K_a, K_b, K_c, K_d, K_e, K_f,
@@ -106,24 +107,6 @@ def debug_print(msg):
     pass
 
 
-def load_fonts(machine: Machine):
-    # 0
-    machine.memory[0] = 0x11110000
-    machine.memory[1] = 0x10010000
-    machine.memory[2] = 0x10010000
-    machine.memory[3] = 0x10010000
-    machine.memory[4] = 0x11110000
-
-    # 1
-    machine.memory[5] = 0x00100000
-    machine.memory[6] = 0x01100000
-    machine.memory[7] = 0x00100000
-    machine.memory[8] = 0x00100000
-    machine.memory[9] = 0x01110000
-
-    # TODO:
-
-
 def font_address(character: int) -> int:
     # Each font takes 5 bytes (memory locations)
     return character * 5
@@ -156,8 +139,9 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed, beep):
 
     elif opCode.n0 == 0x2:
         # 2NNN	Flow	*(0xNNN)()	Calls subroutine at NNN.
-        # Not sure if we should implement PC here on the return.
         machine.stack.append(machine.program_counter + 2)
+        if len(machine.stack) > 16:
+            raise ValueError("Stack overflow")
         machine.program_counter = (opCode.n1 * 256) + \
             (opCode.n2 * 16) + opCode.n3
         debug_print(f"Jumping to {machine.program_counter}")
@@ -236,8 +220,25 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed, beep):
             machine.registers[opCode.n1] = machine.registers[opCode.n1] >> 1
             machine.program_counter = machine.program_counter + 2
 
-        # 8xy7
-        # 8xye
+        elif opCode.n3 == 0x7:
+            # Vx=Vy-V
+            X = opCode.n1
+            Y = opCode.n2
+            machine.registers[X] = machine.registers[Y] - machine.registers[X]
+            if machine.registers[X] < 0:
+                #Borrow (underflow?)
+                machine.registers[0xF] = 0
+                machine.registers[X] = machine.registers[X] % 0x100  #Not 100% sure!
+            else:
+                machine.registers[0xF] = 1
+
+            machine.program_counter = machine.program_counter + 2
+
+        elif opCode.n3 == 0x8:
+            # Vx<<=1
+            machine.registers[0xF] = machine.registers[opCode.n1] & 0b10000000
+            machine.registers[opCode.n1] = (machine.registers[opCode.n1] << 1) & 0b11111111
+            machine.program_counter = machine.program_counter + 2
 
         else:
             raise ValueError(
@@ -369,7 +370,7 @@ def step(machine: Machine, draw_screen_callback, is_key_pressed, beep):
 
 machine = Machine()
 machine.load_rom("c8games/TETRIS")
-load_fonts(machine)
+load_fonts(machine.memory)
 
 pygame.init()
 CELLSIZE = 10
